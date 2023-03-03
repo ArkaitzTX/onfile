@@ -8,31 +8,35 @@ const onfile = (function () {
             Array.isArray(contenido)
         );
     }
+    async function crearContenido(contenido) {
+        const val = /^(?:\/?[a-zA-Z0-9_-]+)+\.[a-zA-Z]{2,}$/gm;
+        contenido = await Promise.all(contenido.map((elemento) => 
+            (val.test(elemento)) 
+                ? fetch(elemento).then(response => response.text())
+                : Promise.resolve(elemento)
+        ));
 
-    function buscarContenido() {
-
+        //! Terminar la promesa
+        return [contenido.join(union)];
     }
-
     function directorio(archivo) {
         
     }
-
-    function documento(archivo) {
+    async function documento(archivo) {
         return archivo.length === 1 
             // archivo entero(get) 
-            ? fetch(archivo[0]).then((data) => {
-                return {
-                    nombre: (archivo[0].includes("/")) ? archivo[0].split("/").pop() : archivo[0],
-                    blob: data.blob()
-                }
-            }) 
+            ? {
+                nombre: (archivo[0].includes("/")) ? archivo[0].split("/").pop() : archivo[0],
+                url: archivo[0]
+            }
             // archivo creado(create)
-            : new Promise((resultado) => {
-                resultado({
-                    nombre: "",
-                    blob: new Blob([])
-                })
-            });
+            : (() => {
+                const[nombre, ...contenido] = archivo;
+                return crearContenido(contenido).then((resultado) => ({
+                    nombre: nombre,
+                    url: window.URL.createObjectURL(new Blob(resultado)),
+                }));
+            })();
     }
     // Todo: Funciones publicas
     return {
@@ -56,29 +60,32 @@ const onfile = (function () {
 
             // variables
             let directa = (typeof archivos.slice(-1)[0] === "boolean") ? archivos.pop() : true;
+
             // recoge toda la informacion
-            archivos = archivos.map((archivo) => {
+            archivos = Promise.all( archivos.map((archivo) => {
                 // tipo de archivo
                 return (comprobarTipo(archivo)) ?
                     directorio(archivo) :
                     documento(archivo);
 
-            })
-            // descargar o devolver archivos
-            archivos.forEach(archivo => {
-                archivo.then(descargable => {
-                        console.log(descargable);
+            }))
+            if (directa) {
+                archivos.then((archivos) => {
+                    archivos.forEach(descargable => {
+                        // descarga el link
                         const link = document.createElement('a');
-
-                        link.href = window.URL.createObjectURL(descargable.blob.url);
+        
+                        link.href = descargable.url;
                         link.download = descargable.nombre;
                         link.click();
+        
+                        window.URL.revokeObjectURL(descargable.url);
+                    })
+                });
+                return;
+            }
 
-                        window.URL.revokeObjectURL(url);
-                    }
-
-                );
-            });
+            return archivos;
         }
     };
 })();
