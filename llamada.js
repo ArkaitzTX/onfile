@@ -1,0 +1,1 @@
+onfile.create(["archivos/img.jpg"]);
